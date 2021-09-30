@@ -1,9 +1,12 @@
 from datetime import datetime
+from decimal import Decimal
 
 from django.db.models import Max
-from django.shortcuts import render
+# from django.shortcuts import render
 from rest_framework import viewsets
-from .serializers import PositionSerializer
+
+from .helpers import VisitedPositions
+from .serializers import PositionSerializer, VisitedPositionsSerializer
 from .models import Position
 from rest_framework.response import Response
 from rest_framework import status
@@ -30,48 +33,29 @@ class PositionViewSet(viewsets.ModelViewSet):
             print('get from cache')
             position = cache.get(data['user']).split(',')
             position_start = helpers.PosCoords(data['latitude'], data['longitude'])
-            position_end = helpers.PosCoords(float(position[0]), float(position[1]))
-            calc_distance = helpers.calc_distance(position_start, position_end)
-            print(calc_distance)
-            print('position')
-            print(position)
-            #time_lapse = datetime.now - datetime.strptime(position[2], "%m/%d/%Y %H:%M:%S")
-            if (calc_distance * 1000) < 50:
-                print('data')
-                print(data)
+            position_end = helpers.PosCoords(Decimal(position[0]), Decimal(position[1]))
+            calc_distance = helpers.calc_distance(position_start, position_end).m
+            time_lapse = datetime.now() - datetime.strptime(position[2], "%m/%d/%Y %H:%M:%S")
+            if calc_distance < 50:
                 position_id = Position.objects.filter(user=data['user']).aggregate(Max('id'))['id__max']
-                print('positionId')
-                print(position_id)
-                update_position(position_id, False)#time_lapse.total_seconds() > 600)
+                update_position(position_id, time_lapse.total_seconds() > 60)
             else:
-                #time_lapse = datetime.now - datetime.strptime(position[2], "%m/%d/%Y, %H:%M:%S")
-                data._mutable = True
-                data['user'] = User.objects.get(id=data['user'])
-                data['distance'] = calc_distance
-                #data['speed'] = distance / time_lapse.total_seconds() * 3600
-                post = Position(user=data['user'],
-                                latitude=float(data['latitude']),
-                                longitude=float(['longitude']),
-                                calc_distance=float(calc_distance))
+                post = Position(user=User.objects.get(id=data['user']),
+                                latitude=Decimal(data['latitude']),
+                                longitude=Decimal(data['longitude']),
+                                distance=Decimal(calc_distance),
+                                speed=(calc_distance/1000) / time_lapse.total_seconds() * 3600)
                 post.save()
-                #Position.objects.create(data)
         else:
             cache.set(data['user'], str(data['latitude']) + ',' + str(data['longitude']) + ',' +
                       datetime.now().strftime("%m/%d/%Y %H:%M:%S"))
             print('set cache')
-            print(data)
-            data._mutable = True
-            data['user'] = User.objects.get(id=data['user'])
-            post = Position(user=data['user'],
-                            latitude=data['latitude'],
-                            longitude=data['longitude'],
-                            distance=0,
-                            speed=0)
-            print('post values')
-            print(post)
-            #post.save()
-            Position.objects.create(data)
-        print(data)
+            post = Position(user=User.objects.get(id=data['user']),
+                            latitude=Decimal(data['latitude']),
+                            longitude=Decimal(data['longitude']),
+                            distance=Decimal(0),
+                            speed=Decimal(0))
+            post.save()
         return Response(status=status.HTTP_200_OK)
 
     def update(self, request, *args, **kwargs):
@@ -80,6 +64,11 @@ class PositionViewSet(viewsets.ModelViewSet):
         return Response(status=status.HTTP_200_OK)
 
     def get_queryset(self):
+        # self.serializer_class = VisitedPositionsSerializer
         user_id = self.request.query_params.get('userId')
-        queryset = Position.objects.filter(user_id=user_id)
+        queryset = list(Position.objects.filter(user_id=user_id, visited=True))
+        # result = map(lambda x: helpers.VisitedPositions(x.latitude, x.longitude, 0), queryset)
+        result = [helpers.VisitedPositions(x.latitude, x.longitude,
+                                           (x.dateCreated - x.dateModified).total_seconds()/3600) for x in queryset]
         return queryset
+        # Response(helpers.VisitedPositions(4.723453, -72.543455, 89))
