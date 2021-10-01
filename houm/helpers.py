@@ -22,8 +22,10 @@ class PosCoords:
 
 class VisitedPositions(PosCoords):
     def __init__(self, lat: Decimal, long: Decimal, time_spend: Decimal):
-        # self.positionCoords = self.positionCoords
-        # self.lat = lat
-        # self.long = long
         super().__init__(lat, long)
         self.time_spend = time_spend
+
+
+class Speed:
+    def __init__(self, speed: Decimal):
+        self.speed = speed

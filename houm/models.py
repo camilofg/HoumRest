@@ -13,7 +13,7 @@ class Position(models.Model):
     dateModified = models.DateTimeField(auto_now_add=True, blank=True, null=False)
     distance = models.DecimalField(max_digits=9, decimal_places=4, default=0)
     speed = models.DecimalField(max_digits=9, decimal_places=4, default=0)
-    visited = models.BooleanField(default=False)
+    visit_duration = models.DecimalField(max_digits=9, decimal_places=4, default=0)
 
     def __str__(self):
         return str(self.latitude) + ', ' + str(self.longitude)

@@ -13,5 +13,11 @@ class PositionSerializer(serializers.ModelSerializer):
 
 class VisitedPositionsSerializer(serializers.ModelSerializer):
     class Meta:
-        model = VisitedPositions
-        fields = ('lat', 'long', 'time_spend')
+        model = Position
+        fields = ('user', 'latitude', 'longitude', 'visit_duration')
+
+
+class SpeedSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Position
+        fields = ('user', 'speed')
