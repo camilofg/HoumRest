@@ -1,7 +1,15 @@
+import os
 from pathlib import Path
+from configparser import ConfigParser
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+config = ConfigParser()
+ini_file = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'config.ini'))
+config.read(ini_file)
 
 
 # Quick-start development settings - unsuitable for production
@@ -70,12 +78,12 @@ DATABASES = {
     }
 }
 
-CACHE_TTL = 60 * 1500
+
 
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://127.0.0.1:6379/1",
+        "LOCATION": "redis://"+config['REDIS']['url'],
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
         }

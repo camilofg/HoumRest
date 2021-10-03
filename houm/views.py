@@ -1,25 +1,30 @@
+import os
 from datetime import datetime
 from decimal import Decimal
 
 from django.db.models import Max
-# from django.shortcuts import render
 from rest_framework import viewsets
 
 from .serializers import PositionSerializer, VisitedPositionsSerializer, SpeedSerializer
 from .models import Position
 from rest_framework.response import Response
 from rest_framework import status
-from django.conf import settings
-from django.core.cache.backends.base import DEFAULT_TIMEOUT
 from django.core.cache import cache
 from . import helpers
 from django.contrib.auth.models import User
+from configparser import ConfigParser
 
-CACHE_TTL = getattr(settings, 'CACHE_TTL', DEFAULT_TIMEOUT)
+config = ConfigParser()
+ini_file = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'config.ini'))
+config.read(ini_file)
 
 
-def update_position(id_position, current_datetime, visit_duration):
+def update_position_time(id_position, current_datetime, visit_duration):
     Position.objects.filter(id=id_position).update(dateModified=current_datetime, visit_duration=visit_duration)
+
+
+def update_position(id_position, current_datetime):
+    Position.objects.filter(id=id_position).update(dateModified=current_datetime)
 
 
 class PositionViewSet(viewsets.ModelViewSet):
@@ -35,10 +40,14 @@ class PositionViewSet(viewsets.ModelViewSet):
             position_start = helpers.PosCoords(data['latitude'], data['longitude'])
             position_end = helpers.PosCoords(Decimal(position[0]), Decimal(position[1]))
             calc_distance = helpers.calc_distance(position_start, position_end).m
-            time_lapse = current_datetime - datetime.strptime(position[2], "%m/%d/%Y %H:%M:%S")
-            if calc_distance < 50:
+            created_date = datetime.strptime(position[2], "%m/%d/%Y %H:%M:%S")
+            time_lapse = current_datetime - created_date
+            if calc_distance < int(config['DEFAULT']['distance']):
                 position_id = Position.objects.filter(user=data['user']).aggregate(Max('id'))['id__max']
-                update_position(position_id, current_datetime, time_lapse.total_seconds())
+                if time_lapse.total_seconds() > int(config['DEFAULT']['time']):
+                    update_position_time(position_id, current_datetime, time_lapse.total_seconds())
+                else:
+                    update_position(position_id, current_datetime)
             else:
                 post = Position(user=User.objects.get(id=data['user']),
                                 latitude=Decimal(data['latitude']),
@@ -50,9 +59,13 @@ class PositionViewSet(viewsets.ModelViewSet):
                 post.save()
                 cache.set(data['user'], str(data['latitude']) + ',' + str(data['longitude']) + ',' +
                           current_datetime.strftime("%m/%d/%Y %H:%M:%S"))
+                cache.persist(data['user'])
         else:
             cache.set(data['user'], str(data['latitude']) + ',' + str(data['longitude']) + ',' +
                       current_datetime.strftime("%m/%d/%Y %H:%M:%S"))
+            cache.persist(data['user'])
+            print('print the cache ttl: ')
+            print(cache.ttl(data['user']))
             print('set cache')
             post = Position(user=User.objects.get(id=data['user']),
                             latitude=Decimal(data['latitude']),
@@ -62,7 +75,7 @@ class PositionViewSet(viewsets.ModelViewSet):
                             distance=Decimal(0),
                             speed=Decimal(0))
             post.save()
-        return Response(status=status.HTTP_200_OK)
+        return Response(status=status.HTTP_201_CREATED)
 
     def get_queryset(self):
         user_id = self.request.query_params.get('user_id')

@@ -20,4 +20,4 @@ class VisitedPositionsSerializer(serializers.ModelSerializer):
 class SpeedSerializer(serializers.ModelSerializer):
     class Meta:
         model = Position
-        fields = ('user', 'speed')
+        fields = ('user', 'latitude', 'longitude', 'speed')
